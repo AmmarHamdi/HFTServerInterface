@@ -1,4 +1,6 @@
 # CI/CD pipeline for HFTServerInterface
+# Destination platform: Red Hat Enterprise Linux 9 (ubi9)
+# All jobs run inside the official RHEL 9 UBI container
 # Triggers: push to main, pull requests targeting main
 # TODO: EXTEND — Add new triggers (e.g., schedule, workflow_dispatch) here
 
@@ -17,44 +19,57 @@ permissions:
 jobs:
   # ---------------------------------------------------------------------------
   # Job 1: Build (Release) and run unit tests
+  # Runs inside RHEL 9 UBI container — mirrors the production environment
   # ---------------------------------------------------------------------------
   build-and-test:
     name: Build and Test (Release)
     runs-on: ubuntu-latest
+    container:
+      image: redhat/ubi9:latest
 
     steps:
       # Step 1: Checkout source code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Install build and test dependencies
+      # Step 2: Enable CodeReady Builder repo and install build dependencies via dnf
       - name: Install dependencies
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
+          dnf install -y \
+            gcc-toolset-13 \
             cmake \
             ninja-build \
-            libboost-all-dev \
-            libssl-dev \
-            libgtest-dev \
-            libgmock-dev \
-            gcovr
-        # TODO: EXTEND — Add additional apt packages here if needed
+            boost-devel \
+            openssl-devel \
+            gtest-devel \
+            gmock-devel \
+            python3-gcovr \
+            git
+        # gcc-toolset-13 provides GCC 13 + full C++17/20 support on RHEL 9
+        # TODO: EXTEND — Add additional dnf packages here if needed
 
-      # Step 3: Configure with CMake (Release mode)
+      # Step 3: Configure with CMake (Release mode) using GCC from toolset
       - name: Configure CMake (Release)
         run: |
+          source /opt/rh/gcc-toolset-13/enable
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_STANDARD=17
+        shell: bash
 
       # Step 4: Build the project
       - name: Build
-        run: cmake --build build --parallel
+        run: |
+          source /opt/rh/gcc-toolset-13/enable
+          cmake --build build --parallel
+        shell: bash
 
       # Step 5: Run unit tests with CTest
       - name: Run unit tests
-        run: cd build && ctest --output-on-failure --parallel 4
+        run: |
+          source /opt/rh/gcc-toolset-13/enable
+          cd build && ctest --output-on-failure --parallel 4
+        shell: bash
 
       # Step 6: Upload test results as artifact
       - name: Upload test results
@@ -67,10 +82,13 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Job 2: Build (Debug) with code coverage
+  # Runs inside RHEL 9 UBI container — mirrors the production environment
   # ---------------------------------------------------------------------------
   build-debug:
     name: Build and Test (Debug + Coverage)
     runs-on: ubuntu-latest
+    container:
+      image: redhat/ubi9:latest
 
     steps:
       # Step 1: Checkout source code
@@ -80,32 +98,41 @@ jobs:
       # Step 2: Install build and test dependencies (same as Release job)
       - name: Install dependencies
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
+          dnf install -y \
+            gcc-toolset-13 \
             cmake \
             ninja-build \
-            libboost-all-dev \
-            libssl-dev \
-            libgtest-dev \
-            libgmock-dev \
-            gcovr
-        # TODO: EXTEND — Add additional apt packages here if needed
+            boost-devel \
+            openssl-devel \
+            gtest-devel \
+            gmock-devel \
+            python3-gcovr \
+            git
+        # TODO: EXTEND — Add additional dnf packages here if needed
 
       # Step 3: Configure with CMake (Debug + coverage flags)
       - name: Configure CMake (Debug + Coverage)
         run: |
+          source /opt/rh/gcc-toolset-13/enable
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_STANDARD=17 \
             -DCMAKE_CXX_FLAGS="--coverage"
+        shell: bash
 
       # Step 4: Build the project
       - name: Build
-        run: cmake --build build --parallel
+        run: |
+          source /opt/rh/gcc-toolset-13/enable
+          cmake --build build --parallel
+        shell: bash
 
       # Step 5: Run unit tests with CTest
       - name: Run unit tests
-        run: cd build && ctest --output-on-failure --parallel 4
+        run: |
+          source /opt/rh/gcc-toolset-13/enable
+          cd build && ctest --output-on-failure --parallel 4
+        shell: bash
 
       # Step 6: Generate Cobertura coverage report with gcovr
       - name: Generate coverage report
@@ -125,10 +152,13 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Job 3: Static analysis with cppcheck
+  # Runs inside RHEL 9 UBI container — mirrors the production environment
   # ---------------------------------------------------------------------------
   static-analysis:
     name: Static Analysis (cppcheck)
     runs-on: ubuntu-latest
+    container:
+      image: redhat/ubi9:latest
 
     steps:
       # Step 1: Checkout source code
@@ -136,10 +166,11 @@ jobs:
         uses: actions/checkout@v4
 
       # Step 2: Install cppcheck
+      # Note: cppcheck is available via EPEL on RHEL 9
       - name: Install cppcheck
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y cppcheck
+          dnf install -y epel-release
+          dnf install -y cppcheck
         # TODO: EXTEND — Add additional static analysis tools here
 
       # Step 3: Run cppcheck and produce an XML report
