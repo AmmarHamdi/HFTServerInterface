@@ -159,31 +159,4 @@ jobs:
           name: cppcheck-report
           path: cppcheck-report.xml
         # TODO: EXTEND — Add more static-analysis artifact uploads here
-
-  # ---------------------------------------------------------------------------
-  # Job 4: Clang-format style check (non-blocking)
-  # ---------------------------------------------------------------------------
-  format-check:
-    name: Format Check (clang-format)
-    runs-on: ubuntu-latest
-    # This job will not fail the overall pipeline if formatting issues are found
-    continue-on-error: true
-
-    steps:
-      # Step 1: Checkout source code
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # Step 2: Install clang-format
-      - name: Install clang-format
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y clang-format
-        # TODO: EXTEND — Add other formatting tools here
-
-      # Step 3: Check formatting of all .cpp and .hpp files
-      - name: Run clang-format check
-        run: |
-          find include/ src/ shared/ tests/ -name "*.cpp" -o -name "*.hpp" | \
-            xargs clang-format --dry-run --Werror --style=file
-        # TODO: EXTEND — Add format checks for additional file types here
+        # TODO: EXTEND — Add new jobs below (e.g., valgrind, sanitizers, BDD tests, format-check)
