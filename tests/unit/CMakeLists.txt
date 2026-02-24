@@ -13,6 +13,7 @@ set(HFT_INCLUDE_DIRS
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/shared
     ${CMAKE_SOURCE_DIR}/src/server
+    ${CMAKE_SOURCE_DIR}/src/transport
     ${CMAKE_SOURCE_DIR}/src/services/reports
 )
 
@@ -26,6 +27,7 @@ set(HFT_UNIT_TEST_SOURCES
     test_CalculationService.cpp
     test_ManipulationService.cpp
     test_EndOfDayReport.cpp
+    test_ServerBootstrap.cpp
 
     # Server implementation sources
     ${CMAKE_SOURCE_DIR}/src/server/CommandRegistry.cpp
