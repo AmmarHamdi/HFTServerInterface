@@ -1,4 +1,6 @@
 # CI/CD pipeline for HFTServerInterface
+# Destination platform: Red Hat Enterprise Linux 9 (ubi9)
+# All jobs run inside the official RHEL 9 UBI container
 # Triggers: push to main, pull requests targeting main
 # TODO: EXTEND — Add new triggers (e.g., schedule, workflow_dispatch) here
 
@@ -10,112 +12,110 @@ on:
   pull_request:
     branches: [main]
 
-# Restrict default token permissions to the minimum required
 permissions:
   contents: read
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Job 1: Build (Release) and run unit tests
-  # ---------------------------------------------------------------------------
   build-and-test:
     name: Build and Test (Release)
     runs-on: ubuntu-latest
+    container:
+      image: redhat/ubi9:latest
 
     steps:
-      # Step 1: Checkout source code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Install build and test dependencies
       - name: Install dependencies
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
+          dnf install -y \
+            gcc-toolset-13 \
             cmake \
             ninja-build \
-            libboost-all-dev \
-            libssl-dev \
-            libgtest-dev \
-            libgmock-dev \
-            gcovr
-        # TODO: EXTEND — Add additional apt packages here if needed
+            boost-devel \
+            openssl-devel \
+            gtest-devel \
+            gmock-devel \
+            python3-gcovr \
+            git
 
-      # Step 3: Configure with CMake (Release mode)
       - name: Configure CMake (Release)
         run: |
+          source /opt/rh/gcc-toolset-13/enable
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_STANDARD=17
+        shell: bash
 
-      # Step 4: Build the project
       - name: Build
-        run: cmake --build build --parallel
+        run: |
+          source /opt/rh/gcc-toolset-13/enable
+          cmake --build build --parallel
+        shell: bash
 
-      # Step 5: Run unit tests with CTest
       - name: Run unit tests
-        run: cd build && ctest --output-on-failure --parallel 4
+        run: |
+          source /opt/rh/gcc-toolset-13/enable
+          cd build && ctest --output-on-failure --parallel 4
+        shell: bash
 
-      # Step 6: Upload test results as artifact
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results-release
           path: build/Testing
-        # TODO: EXTEND — Add more artifact uploads (e.g., binaries) here
 
-  # ---------------------------------------------------------------------------
-  # Job 2: Build (Debug) with code coverage
-  # ---------------------------------------------------------------------------
   build-debug:
     name: Build and Test (Debug + Coverage)
     runs-on: ubuntu-latest
+    container:
+      image: redhat/ubi9:latest
 
     steps:
-      # Step 1: Checkout source code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Install build and test dependencies (same as Release job)
       - name: Install dependencies
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
+          dnf install -y \
+            gcc-toolset-13 \
             cmake \
             ninja-build \
-            libboost-all-dev \
-            libssl-dev \
-            libgtest-dev \
-            libgmock-dev \
-            gcovr
-        # TODO: EXTEND — Add additional apt packages here if needed
+            boost-devel \
+            openssl-devel \
+            gtest-devel \
+            gmock-devel \
+            python3-gcovr \
+            git
 
-      # Step 3: Configure with CMake (Debug + coverage flags)
       - name: Configure CMake (Debug + Coverage)
         run: |
+          source /opt/rh/gcc-toolset-13/enable
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_STANDARD=17 \
             -DCMAKE_CXX_FLAGS="--coverage"
+        shell: bash
 
-      # Step 4: Build the project
       - name: Build
-        run: cmake --build build --parallel
+        run: |
+          source /opt/rh/gcc-toolset-13/enable
+          cmake --build build --parallel
+        shell: bash
 
-      # Step 5: Run unit tests with CTest
       - name: Run unit tests
-        run: cd build && ctest --output-on-failure --parallel 4
+        run: |
+          source /opt/rh/gcc-toolset-13/enable
+          cd build && ctest --output-on-failure --parallel 4
+        shell: bash
 
-      # Step 6: Generate Cobertura coverage report with gcovr
       - name: Generate coverage report
         run: |
           gcovr --root . \
             --exclude tests/ \
             --xml build/coverage.xml
-        # TODO: EXTEND — Add additional coverage output formats (e.g., HTML) here
 
-      # Step 7: Upload coverage report as artifact
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
@@ -123,26 +123,21 @@ jobs:
           name: coverage-report
           path: build/coverage.xml
 
-  # ---------------------------------------------------------------------------
-  # Job 3: Static analysis with cppcheck
-  # ---------------------------------------------------------------------------
   static-analysis:
     name: Static Analysis (cppcheck)
     runs-on: ubuntu-latest
+    container:
+      image: redhat/ubi9:latest
 
     steps:
-      # Step 1: Checkout source code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Install cppcheck
       - name: Install cppcheck
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y cppcheck
-        # TODO: EXTEND — Add additional static analysis tools here
+          dnf install -y epel-release
+          dnf install -y cppcheck
 
-      # Step 3: Run cppcheck and produce an XML report
       - name: Run cppcheck
         run: |
           cppcheck --enable=all --inconclusive --std=c++17 \
@@ -151,12 +146,9 @@ jobs:
             src/ \
             --xml --xml-version=2 2> cppcheck-report.xml
 
-      # Step 4: Upload cppcheck report as artifact
       - name: Upload cppcheck report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cppcheck-report
           path: cppcheck-report.xml
-        # TODO: EXTEND — Add more static-analysis artifact uploads here
-        # TODO: EXTEND — Add new jobs below (e.g., valgrind, sanitizers, BDD tests, format-check)
