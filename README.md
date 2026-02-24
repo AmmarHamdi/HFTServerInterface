@@ -1,6 +1,6 @@
 # HFTServerInterface
 
-![CI](https://github.com/AmmarHamdi/HFTServerInterface/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/AmmarHamdi/HFTServerInterface/actions/workflows/ci.yml/badge.svg?branch=main)
 
 A **C++ Linux server interface** for a High-Frequency Trading (HFT) application
 being migrated from a monolithic Windows MFC client to a **3-tier architecture**.
