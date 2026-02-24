@@ -38,8 +38,9 @@ jobs:
             openssl-devel \
             gtest-devel \
             gmock-devel \
-            gcovr \
+            python3-pip \
             git
+          pip3 install gcovr
 
       - name: Configure CMake (Release)
         run: |
@@ -90,8 +91,9 @@ jobs:
             openssl-devel \
             gtest-devel \
             gmock-devel \
-            gcovr \
+            python3-pip \
             git
+          pip3 install gcovr
 
       - name: Configure CMake (Debug + Coverage)
         run: |
