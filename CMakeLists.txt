@@ -73,6 +73,27 @@ target_include_directories(hft_services PUBLIC
 #               separate CMake target) when a new concrete service is introduced.
 
 # ──────────────────────────────────────────────────────────────
+# Server executable
+# ──────────────────────────────────────────────────────────────
+add_executable(hft_server_exe
+    src/main.cpp
+)
+
+target_include_directories(hft_server_exe PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/shared
+    ${CMAKE_SOURCE_DIR}/src/server
+    ${CMAKE_SOURCE_DIR}/src/transport
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(hft_server_exe PRIVATE
+    hft_transport
+    hft_server
+    hft_services
+)
+
+# ──────────────────────────────────────────────────────────────
 # Tests
 # ──────────────────────────────────────────────────────────────
 enable_testing()

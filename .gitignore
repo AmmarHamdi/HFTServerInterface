@@ -1,0 +1,20 @@
+# Build output
+build/
+cmake-build-*/
+
+# SSL certificates and private keys — never commit these
+certs/*.key
+certs/*.pem
+certs/*.crt
+certs/*.p12
+certs/*.pfx
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
