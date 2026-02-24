@@ -99,6 +99,172 @@ exercise them directly (see `tests/unit/test_ServerBootstrap.cpp`).
 
 ---
 
+## UML Class Diagram
+
+```mermaid
+classDiagram
+    direction TB
+
+    %% ── Transport layer ─────────────────────────────────────────
+    class ITransport {
+        <<interface>>
+        +send(buffer : RawBuffer) void
+        +receive() RawBuffer
+        +start() void
+        +stop() void
+    }
+    class BoostAsioSslTransport {
+        -m_host : string
+        -m_port : uint16_t
+        -m_certFile : string
+        -m_keyFile : string
+        -m_ioContext : io_context
+        -m_sslContext : ssl_context
+        -m_acceptor : tcp_acceptor
+        +send(buffer : RawBuffer) void
+        +receive() RawBuffer
+        +start() void
+        +stop() void
+    }
+    ITransport <|.. BoostAsioSslTransport
+
+    %% ── Server / Facade layer ───────────────────────────────────
+    class IServerFacade {
+        <<interface>>
+        +handleRequest(request : Request) Response
+    }
+    class TradingServerFacade {
+        -m_marketDataService : IMarketDataService
+        -m_calculationService : ICalculationService
+        -m_manipulationService : IManipulationService
+        -m_reportService : IReportService
+        -m_registry : CommandRegistry
+        +handleRequest(request : Request) Response
+    }
+    IServerFacade <|.. TradingServerFacade
+
+    class CommandRegistry {
+        -m_factories : map
+        +registerCommand(type : RequestType, factory : CommandFactory) void
+        +create(request : Request) ICommand
+    }
+    TradingServerFacade *-- CommandRegistry
+
+    %% ── Command layer ───────────────────────────────────────────
+    class ICommand {
+        <<interface>>
+        +execute() Response
+    }
+    class GetMarketDataCommand {
+        -m_service : IMarketDataService
+        -m_request : Request
+        +execute() Response
+    }
+    class CalculationCommand {
+        -m_service : ICalculationService
+        -m_request : Request
+        +execute() Response
+    }
+    class ManipulationCommand {
+        -m_service : IManipulationService
+        -m_request : Request
+        +execute() Response
+    }
+    class ReportCommand {
+        -m_service : IReportService
+        -m_reportRequest : ReportRequest
+        +execute() Response
+    }
+    ICommand <|.. GetMarketDataCommand
+    ICommand <|.. CalculationCommand
+    ICommand <|.. ManipulationCommand
+    ICommand <|.. ReportCommand
+    CommandRegistry ..> ICommand : creates
+
+    %% ── Service interfaces ──────────────────────────────────────
+    class IMarketDataService {
+        <<interface>>
+        +getData(request : Request) Response
+        +subscribe(symbol : string) void
+        +unsubscribe(symbol : string) void
+    }
+    class ICalculationService {
+        <<interface>>
+        +calculate(request : Request) Response
+    }
+    class IManipulationService {
+        <<interface>>
+        +manipulate(request : Request) Response
+        +transform(request : Request) Response
+    }
+    class IReportService {
+        <<interface>>
+        +generateReport(request : ReportRequest) Response
+    }
+    TradingServerFacade --> IMarketDataService
+    TradingServerFacade --> ICalculationService
+    TradingServerFacade --> IManipulationService
+    TradingServerFacade --> IReportService
+    GetMarketDataCommand --> IMarketDataService
+    CalculationCommand   --> ICalculationService
+    ManipulationCommand  --> IManipulationService
+    ReportCommand        --> IReportService
+
+    %% ── Stub implementations ────────────────────────────────────
+    class StubMarketDataService {
+        +getData(request : Request) Response
+        +subscribe(symbol : string) void
+        +unsubscribe(symbol : string) void
+    }
+    class StubCalculationService {
+        +calculate(request : Request) Response
+    }
+    class StubManipulationService {
+        +manipulate(request : Request) Response
+        +transform(request : Request) Response
+    }
+    class StubReportService {
+        +generateReport(request : ReportRequest) Response
+    }
+    IMarketDataService   <|.. StubMarketDataService
+    ICalculationService  <|.. StubCalculationService
+    IManipulationService <|.. StubManipulationService
+    IReportService       <|.. StubReportService
+
+    %% ── Report pipeline ─────────────────────────────────────────
+    class BaseReport {
+        <<abstract>>
+        +generate(request : ReportRequest) Report
+        #fetchData(request : ReportRequest) ReportData*
+        #computeReport(data : ReportData) ReportData*
+        #format(data : ReportData) Report*
+    }
+    class EndOfDayReport {
+        #fetchData(request : ReportRequest) ReportData
+        #computeReport(data : ReportData) ReportData
+        #format(data : ReportData) Report
+    }
+    BaseReport <|-- EndOfDayReport
+
+    %% ── Models ──────────────────────────────────────────────────
+    class Request {
+        +type : RequestType
+        +payload : vector~uint8_t~
+    }
+    class Response {
+        +success : bool
+        +message : string
+        +data : vector~uint8_t~
+    }
+    class ReportRequest {
+        +reportType : string
+        +dateFrom : string
+        +dateTo : string
+    }
+```
+
+---
+
 ## Communication Stack
 
 **Iteration 1:** Boost.Asio + SSL/TLS + binary POD structs
