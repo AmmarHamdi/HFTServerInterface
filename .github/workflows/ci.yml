@@ -118,9 +118,12 @@ jobs:
 
       - name: Generate coverage report
         run: |
+          source /opt/rh/gcc-toolset-13/enable
           gcovr --root . \
+            --gcov-executable gcov \
             --exclude tests/ \
             --xml build/coverage.xml
+        shell: bash
 
       - name: Upload coverage report
         if: always()
