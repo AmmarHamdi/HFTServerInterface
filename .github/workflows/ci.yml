@@ -1,0 +1,189 @@
+# CI/CD pipeline for HFTServerInterface
+# Triggers: push to main, pull requests targeting main
+# TODO: EXTEND — Add new triggers (e.g., schedule, workflow_dispatch) here
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Restrict default token permissions to the minimum required
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Build (Release) and run unit tests
+  # ---------------------------------------------------------------------------
+  build-and-test:
+    name: Build and Test (Release)
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout source code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Install build and test dependencies
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libboost-all-dev \
+            libssl-dev \
+            libgtest-dev \
+            libgmock-dev \
+            gcovr
+        # TODO: EXTEND — Add additional apt packages here if needed
+
+      # Step 3: Configure with CMake (Release mode)
+      - name: Configure CMake (Release)
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17
+
+      # Step 4: Build the project
+      - name: Build
+        run: cmake --build build --parallel
+
+      # Step 5: Run unit tests with CTest
+      - name: Run unit tests
+        run: cd build && ctest --output-on-failure --parallel 4
+
+      # Step 6: Upload test results as artifact
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-release
+          path: build/Testing
+        # TODO: EXTEND — Add more artifact uploads (e.g., binaries) here
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Build (Debug) with code coverage
+  # ---------------------------------------------------------------------------
+  build-debug:
+    name: Build and Test (Debug + Coverage)
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout source code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Install build and test dependencies (same as Release job)
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libboost-all-dev \
+            libssl-dev \
+            libgtest-dev \
+            libgmock-dev \
+            gcovr
+        # TODO: EXTEND — Add additional apt packages here if needed
+
+      # Step 3: Configure with CMake (Debug + coverage flags)
+      - name: Configure CMake (Debug + Coverage)
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_CXX_FLAGS="--coverage"
+
+      # Step 4: Build the project
+      - name: Build
+        run: cmake --build build --parallel
+
+      # Step 5: Run unit tests with CTest
+      - name: Run unit tests
+        run: cd build && ctest --output-on-failure --parallel 4
+
+      # Step 6: Generate Cobertura coverage report with gcovr
+      - name: Generate coverage report
+        run: |
+          gcovr --root . \
+            --exclude tests/ \
+            --xml build/coverage.xml
+        # TODO: EXTEND — Add additional coverage output formats (e.g., HTML) here
+
+      # Step 7: Upload coverage report as artifact
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: build/coverage.xml
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Static analysis with cppcheck
+  # ---------------------------------------------------------------------------
+  static-analysis:
+    name: Static Analysis (cppcheck)
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout source code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Install cppcheck
+      - name: Install cppcheck
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y cppcheck
+        # TODO: EXTEND — Add additional static analysis tools here
+
+      # Step 3: Run cppcheck and produce an XML report
+      - name: Run cppcheck
+        run: |
+          cppcheck --enable=all --inconclusive --std=c++17 \
+            --suppress=missingIncludeSystem \
+            -I include/ -I shared/ \
+            src/ \
+            --xml --xml-version=2 2> cppcheck-report.xml
+
+      # Step 4: Upload cppcheck report as artifact
+      - name: Upload cppcheck report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppcheck-report
+          path: cppcheck-report.xml
+        # TODO: EXTEND — Add more static-analysis artifact uploads here
+
+  # ---------------------------------------------------------------------------
+  # Job 4: Clang-format style check (non-blocking)
+  # ---------------------------------------------------------------------------
+  format-check:
+    name: Format Check (clang-format)
+    runs-on: ubuntu-latest
+    # This job will not fail the overall pipeline if formatting issues are found
+    continue-on-error: true
+
+    steps:
+      # Step 1: Checkout source code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Install clang-format
+      - name: Install clang-format
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang-format
+        # TODO: EXTEND — Add other formatting tools here
+
+      # Step 3: Check formatting of all .cpp and .hpp files
+      - name: Run clang-format check
+        run: |
+          find include/ src/ shared/ tests/ -name "*.cpp" -o -name "*.hpp" | \
+            xargs clang-format --dry-run --Werror --style=file
+        # TODO: EXTEND — Add format checks for additional file types here
