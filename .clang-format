@@ -1,3 +1,65 @@
+---
+# clang-format configuration for HFTServerInterface
+# C++17 — Based on Google style with project-specific overrides
+# TODO: EXTEND — Add new rules here as coding standards evolve
+
+Language: Cpp
 BasedOnStyle: Google
+
+# Indentation — override Google's 2-space with 4-space
 IndentWidth: 4
+ContinuationIndentWidth: 4
+TabWidth: 4
+UseTab: Never
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+
+# Line length
 ColumnLimit: 120
+
+# Braces
+BreakBeforeBraces: Attach
+Cpp11BracedListStyle: true
+
+# Spacing
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpaceAfterCStyleCast: false
+SpacesInAngles: false
+SpacesInContainerLiterals: false
+
+# Alignment
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignTrailingComments: true
+
+# Pointers and references — Left-aligned (int* ptr, not int *ptr)
+PointerAlignment: Left
+ReferenceAlignment: Left
+DerivePointerAlignment: false
+
+# Includes
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+
+# Namespaces
+NamespaceIndentation: None
+CompactNamespaces: false
+FixNamespaceComments: true
+
+# Constructor initializer lists
+BreakConstructorInitializers: BeforeComma
+ConstructorInitializerIndentWidth: 4
+
+# Function parameters
+BinPackArguments: false
+BinPackParameters: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Comments
+ReflowComments: false
+
+# Standard
+Standard: c++17
