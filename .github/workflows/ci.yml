@@ -1,6 +1,6 @@
 # CI/CD pipeline for HFTServerInterface
-# Destination platform: Red Hat Enterprise Linux 9 (ubi9)
-# All jobs run inside the official RHEL 9 UBI container
+# Destination platform: CentOS Stream 9 (RHEL 9 equivalent)
+# All jobs run inside the CentOS Stream 9 container
 # Triggers: push to main, pull requests targeting main
 # TODO: EXTEND — Add new triggers (e.g., schedule, workflow_dispatch) here
 
@@ -20,7 +20,7 @@ jobs:
     name: Build and Test (Release)
     runs-on: ubuntu-latest
     container:
-      image: redhat/ubi9:latest
+      image: quay.io/centos/centos:stream9
 
     steps:
       - name: Checkout code
@@ -28,6 +28,8 @@ jobs:
 
       - name: Install dependencies
         run: |
+          dnf install -y epel-release
+          dnf config-manager --set-enabled crb
           dnf install -y \
             gcc-toolset-13 \
             cmake \
@@ -36,7 +38,7 @@ jobs:
             openssl-devel \
             gtest-devel \
             gmock-devel \
-            python3-gcovr \
+            gcovr \
             git
 
       - name: Configure CMake (Release)
@@ -70,7 +72,7 @@ jobs:
     name: Build and Test (Debug + Coverage)
     runs-on: ubuntu-latest
     container:
-      image: redhat/ubi9:latest
+      image: quay.io/centos/centos:stream9
 
     steps:
       - name: Checkout code
@@ -78,6 +80,8 @@ jobs:
 
       - name: Install dependencies
         run: |
+          dnf install -y epel-release
+          dnf config-manager --set-enabled crb
           dnf install -y \
             gcc-toolset-13 \
             cmake \
@@ -86,7 +90,7 @@ jobs:
             openssl-devel \
             gtest-devel \
             gmock-devel \
-            python3-gcovr \
+            gcovr \
             git
 
       - name: Configure CMake (Debug + Coverage)
@@ -127,7 +131,7 @@ jobs:
     name: Static Analysis (cppcheck)
     runs-on: ubuntu-latest
     container:
-      image: redhat/ubi9:latest
+      image: quay.io/centos/centos:stream9
 
     steps:
       - name: Checkout code
