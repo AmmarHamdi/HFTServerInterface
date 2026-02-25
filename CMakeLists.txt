@@ -15,6 +15,24 @@ find_package(Boost REQUIRED COMPONENTS system)
 find_package(OpenSSL REQUIRED)
 find_package(GTest QUIET)          # Optional — only needed for tests
 
+# ── spdlog ────────────────────────────────────────────────────
+include(FetchContent)
+
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG        v1.14.1
+)
+FetchContent_MakeAvailable(spdlog)
+
+# ── cxxopts ───────────────────────────────────────────────────
+FetchContent_Declare(
+    cxxopts
+    GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+    GIT_TAG        v3.2.0
+)
+FetchContent_MakeAvailable(cxxopts)
+
 # ──────────────────────────────────────────────────────────────
 # Global include paths
 # ──────────────────────────────────────────────────────────────
@@ -41,6 +59,7 @@ target_link_libraries(hft_transport PUBLIC
     Boost::system
     OpenSSL::SSL
     OpenSSL::Crypto
+    spdlog::spdlog
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -91,6 +110,8 @@ target_link_libraries(hft_server_exe PRIVATE
     hft_transport
     hft_server
     hft_services
+    spdlog::spdlog
+    cxxopts::cxxopts
 )
 
 # ──────────────────────────────────────────────────────────────
