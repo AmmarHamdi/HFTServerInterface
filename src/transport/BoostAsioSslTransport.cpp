@@ -15,8 +15,9 @@
 
 #include <array>
 #include <cstring>
-#include <iostream>
 #include <stdexcept>
+
+#include <spdlog/spdlog.h>
 
 namespace
 {
@@ -96,8 +97,7 @@ void BoostAsioSslTransport::start()
     m_acceptor.bind(endpoint);
     m_acceptor.listen(boost::asio::socket_base::max_listen_connections);
 
-    std::cout << "[BoostAsioSslTransport] Listening on "
-              << m_host << ":" << m_port << "\n";
+    spdlog::info("[transport] Listening on {}:{}", m_host, m_port);
 
     // ── Start accepting connections ────────────────────────────────────────
     acceptNextConnection();
@@ -110,8 +110,7 @@ void BoostAsioSslTransport::start()
         }
         catch (const std::exception& ex)
         {
-            std::cerr << "[BoostAsioSslTransport] io_context error: "
-                      << ex.what() << "\n";
+            spdlog::error("[transport] io_context error: {}", ex.what());
         }
     });
 }
@@ -147,7 +146,7 @@ void BoostAsioSslTransport::stop()
     if (m_ioThread.joinable())
         m_ioThread.join();
 
-    std::cout << "[BoostAsioSslTransport] Stopped.\n";
+    spdlog::info("[transport] Stopped.");
 }
 
 // ==========================================================================
@@ -233,13 +232,13 @@ void BoostAsioSslTransport::acceptNextConnection()
             if (ec)
             {
                 if (ec != boost::asio::error::operation_aborted)
-                    std::cerr << "[BoostAsioSslTransport] accept error: "
-                              << ec.message() << "\n";
+                    spdlog::error("[transport] accept error: {}", ec.message());
                 return; // acceptor was closed — do not re-arm
             }
 
-            std::cout << "[BoostAsioSslTransport] Accepted connection from "
-                      << socket->lowest_layer().remote_endpoint() << "\n";
+            spdlog::info("[transport] Accepted connection from {}",
+                         socket->lowest_layer().remote_endpoint().address().to_string()
+                         + ":" + std::to_string(socket->lowest_layer().remote_endpoint().port()));
 
             // Disable Nagle for low-latency HFT traffic.
             socket->lowest_layer().set_option(
@@ -261,15 +260,14 @@ void BoostAsioSslTransport::doHandshake(std::shared_ptr<SslSocket> socket)
         {
             if (ec)
             {
-                std::cerr << "[BoostAsioSslTransport] TLS handshake failed: "
-                          << ec.message() << "\n";
+                spdlog::warn("[transport] TLS handshake failed: {}", ec.message());
                 // Re-arm accept so the server keeps running.
                 if (m_running)
                     acceptNextConnection();
                 return;
             }
 
-            std::cout << "[BoostAsioSslTransport] TLS handshake complete.\n";
+            spdlog::info("[transport] TLS handshake complete.");
 
             {
                 std::lock_guard<std::mutex> lock(m_socketMutex);

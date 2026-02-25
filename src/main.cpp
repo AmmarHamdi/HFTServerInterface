@@ -9,19 +9,23 @@
  *   - BoostAsioSslTransport bound to the configured host/port
  *
  * Usage:
- *   hft_server [port] [cert.pem] [key.pem]
+ *   hft_server_exe [options]
  *
- *   port      TCP port to listen on          (default: 8443)
- *   cert.pem  Path to PEM server certificate (default: server.crt)
- *   key.pem   Path to PEM private key        (default: server.key)
+ * Run with --help to see all available options.
  */
 
+#include <atomic>
 #include <csignal>
 #include <cstdlib>
-#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <chrono>
+
+#include <cxxopts.hpp>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 // ── Transport ──────────────────────────────────────────────────────────────
 #include "BoostAsioSslTransport.hpp"
@@ -50,15 +54,17 @@
 
 namespace
 {
-    // Raw pointer so the signal handler (C linkage) can reach it.
+    /// Set to true by the signal handler; polled by the main thread.
+    std::atomic<bool> g_shutdown{false};
+
+    /// Raw pointer so the signal handler (C linkage) can reach the transport.
     ITransport* g_transport = nullptr;
 
     void onShutdownSignal(int signum)
     {
-        std::cout << "\n[main] Caught signal " << signum
-                  << " — stopping server...\n";
-        if (g_transport)
-            g_transport->stop();
+        // Only async-signal-safe operations: atomic store + nothing else.
+        g_shutdown.store(true, std::memory_order_relaxed);
+        (void)signum;
     }
 } // namespace
 
@@ -68,15 +74,67 @@ namespace
 
 int main(int argc, char* argv[])
 {
-    // ── Parse command-line arguments ───────────────────────────────────────
-    const uint16_t    port     = (argc > 1) ? static_cast<uint16_t>(std::stoul(argv[1])) : 8443;
-    const std::string certFile = (argc > 2) ? argv[2] : "certs/server.crt";
-    const std::string keyFile  = (argc > 3) ? argv[3] : "certs/server.key";
-    const std::string host     = "0.0.0.0";
+    // ── Set up a named, coloured console logger ────────────────────────────
+    auto logger = spdlog::stdout_color_mt("hft");
+    spdlog::set_default_logger(logger);
+    spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%n] %v");
 
-    std::cout << "[main] Starting HFT server on " << host << ":" << port << "\n"
-              << "[main] Certificate : " << certFile << "\n"
-              << "[main] Private key : " << keyFile  << "\n";
+    // ── Parse command-line arguments with cxxopts ──────────────────────────
+    cxxopts::Options options("hft_server_exe", "HFT Trading Server — Boost.Asio SSL/TLS");
+
+    options.add_options()
+        ("p,port",  "TCP port to listen on",
+            cxxopts::value<uint16_t>()->default_value("8443"))
+        ("H,host",  "Bind address",
+            cxxopts::value<std::string>()->default_value("0.0.0.0"))
+        ("c,cert",  "Path to PEM server certificate",
+            cxxopts::value<std::string>()->default_value("certs/server.crt"))
+        ("k,key",   "Path to PEM private key",
+            cxxopts::value<std::string>()->default_value("certs/server.key"))
+        ("l,log-level", "Log level: trace|debug|info|warn|error|critical",
+            cxxopts::value<std::string>()->default_value("info"))
+        ("h,help",  "Print this help message and exit");
+
+    cxxopts::ParseResult args;
+    try
+    {
+        args = options.parse(argc, argv);
+    }
+    catch (const cxxopts::exceptions::exception& ex)
+    {
+        spdlog::error("Argument error: {}", ex.what());
+        std::cerr << options.help() << "\n";
+        return EXIT_FAILURE;
+    }
+
+    if (args.count("help"))
+    {
+        std::cout << options.help() << "\n";
+        return EXIT_SUCCESS;
+    }
+
+    // Apply requested log level.
+    const auto logLevelStr = args["log-level"].as<std::string>();
+    const auto logLevel    = spdlog::level::from_str(logLevelStr);
+    if (logLevel == spdlog::level::off && logLevelStr != "off")
+    {
+        spdlog::warn("Unknown log level '{}', defaulting to 'info'", logLevelStr);
+        spdlog::set_level(spdlog::level::info);
+    }
+    else
+    {
+        spdlog::set_level(logLevel);
+    }
+
+    const uint16_t    port     = args["port"].as<uint16_t>();
+    const std::string host     = args["host"].as<std::string>();
+    const std::string certFile = args["cert"].as<std::string>();
+    const std::string keyFile  = args["key"].as<std::string>();
+
+    spdlog::info("Starting HFT server on {}:{}", host, port);
+    spdlog::info("Certificate : {}", certFile);
+    spdlog::info("Private key : {}", keyFile);
+    spdlog::debug("Log level   : {}", logLevelStr);
 
     // ── Build service layer ────────────────────────────────────────────────
     // TODO: Replace stubs with real implementations once they are available.
@@ -84,6 +142,8 @@ int main(int argc, char* argv[])
     auto calculationService  = std::make_shared<StubCalculationService>();
     auto manipulationService = std::make_shared<StubManipulationService>();
     auto reportService       = std::make_shared<StubReportService>();
+
+    spdlog::debug("Service layer created (stubs)");
 
     // ── Populate the CommandRegistry ───────────────────────────────────────
     CommandRegistry registry;
@@ -109,16 +169,17 @@ int main(int argc, char* argv[])
     registry.registerCommand(
         RequestType::GENERATE_REPORT,
         [reportService](const Request& req) {
-            // Deserialise the generic payload into a ReportRequest.
-            // TODO: Replace this placeholder deserialization with a proper
-            //       implementation once the wire format is defined.
+            // TODO: Replace placeholder deserialisation with wire format parser.
             ReportRequest reportReq;
             reportReq.reportType = "EndOfDay";
             reportReq.dateFrom   = "2026-01-01";
             reportReq.dateTo     = "2026-12-31";
-            (void)req; // suppress unused-parameter warning until deserialisation is added
+            (void)req;
             return std::make_unique<ReportCommand>(reportService, reportReq);
         });
+
+    spdlog::debug("CommandRegistry populated ({} commands)",
+                  static_cast<int>(RequestType::GENERATE_REPORT) + 1);
 
     // ── Build server facade ────────────────────────────────────────────────
     auto facade = std::make_shared<TradingServerFacade>(
@@ -132,22 +193,44 @@ int main(int argc, char* argv[])
     BoostAsioSslTransport transport(host, port, certFile, keyFile);
 
     // ── Install signal handlers ────────────────────────────────────────────
+    // NOTE: Only async-signal-safe operations are used inside the handler.
+    //       The main thread polls g_shutdown and calls transport.stop() safely.
     g_transport = &transport;
     std::signal(SIGINT,  onShutdownSignal);
     std::signal(SIGTERM, onShutdownSignal);
 
-    // ── Start ──────────────────────────────────────────────────────────────
+    // ── Start transport (non-blocking — runs io_context on a background thread)
     try
     {
-        std::cout << "[main] Server running. Press Ctrl+C to stop.\n";
         transport.start();
     }
     catch (const std::exception& ex)
     {
-        std::cerr << "[main] Fatal error: " << ex.what() << "\n";
+        spdlog::critical("Failed to start transport: {}", ex.what());
         return EXIT_FAILURE;
     }
 
-    std::cout << "[main] Server stopped cleanly.\n";
+    spdlog::info("Server running. Press Ctrl+C to stop.");
+
+    // ── Block main thread until a shutdown signal is received ──────────────
+    // transport.start() is non-blocking (background thread). Without this loop
+    // main() would return immediately and the process would exit, which is why
+    // the server appeared to start and stop instantly.
+    while (!g_shutdown.load(std::memory_order_relaxed))
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // ── Graceful shutdown ──────────────────────────────────────────────────
+    spdlog::info("Shutdown signal received — stopping server...");
+    try
+    {
+        transport.stop();
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("Error during shutdown: {}", ex.what());
+    }
+
+    spdlog::info("Server stopped cleanly.");
     return EXIT_SUCCESS;
 }
+
